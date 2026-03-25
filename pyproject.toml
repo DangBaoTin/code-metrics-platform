@@ -1,0 +1,17 @@
+[project]
+name = "code-metrics-platform"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cassandra-driver>=3.29.3",
+    "faker>=40.11.1",
+    "kafka-python>=2.3.0",
+    "matplotlib>=3.10.8",
+    "pandas>=2.3.3",
+    "plotly>=6.6.0",
+    "pymongo>=4.16.0",
+    "pyspark==3.5.0",
+    "streamlit>=1.55.0",
+]
