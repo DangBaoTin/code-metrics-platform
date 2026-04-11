@@ -1,6 +1,21 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     environment:
@@ -17,22 +32,244 @@ services:
       - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m" # Limit Kafka memory
+    mem_limit: 1g
 
   cassandra:
-    image: cassandra:latest
+    image: cassandra:5.0.7
+    restart: unless-stopped
     ports:
       - "9042:9042"
     environment:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
+      - CASSANDRA_SEEDS=cassandra
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=768M
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
     volumes:
-      - ./storage/cassandra_data:/var/lib/cassandra
+      - ./storage/cassandra_data/node1:/var/lib/cassandra
+    mem_limit: 2g
+
+  cassandra2:
+    image: cassandra:5.0.7
+    restart: unless-stopped
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    environment:
+      - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
+      - CASSANDRA_SEEDS=cassandra
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=768M
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    volumes:
+      - ./storage/cassandra_data/node2:/var/lib/cassandra
+    mem_limit: 2g
+
+  cassandra3:
+    image: cassandra:5.0.7
+    restart: unless-stopped
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    environment:
+      - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
+      - CASSANDRA_SEEDS=cassandra
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=768M
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    volumes:
+      - ./storage/cassandra_data/node3:/var/lib/cassandra
+    mem_limit: 2g
 
   mongodb:
-    image: mongo:latest
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     ports:
       - "27017:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     volumes:
-      - ./storage/mongo_data:/data/db
+      - ./storage/mongo_data/node1:/data/db
+
+  mongodb2:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27018:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - ./storage/mongo_data/node2:/data/db
+
+  mongodb3:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27019:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - ./storage/mongo_data/node3:/data/db
+
+  mongodb-rs-init:
+    image: mongo:7
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mongodb2:
+        condition: service_healthy
+      mongodb3:
+        condition: service_healthy
+    command: >
+      bash -c "
+        mongosh --host mongodb:27017 --eval '
+          rs.initiate({
+            _id: \"rs0\",
+            members: [
+              { _id: 0, host: \"mongodb:27017\", priority: 2 },
+              { _id: 1, host: \"mongodb2:27017\", priority: 1 },
+              { _id: 2, host: \"mongodb3:27017\", priority: 1 }
+            ]
+          });
+        ' || true
+      "
+
+  airflow:
+    image: apache/airflow:2.8.1-python3.10
+    user: "0:0"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      cassandra:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      mongodb-rs-init:
+        condition: service_completed_successfully
+    environment:
+      - AIRFLOW_UID=50000
+      - AIRFLOW_GID=0
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+      - AIRFLOW__WEBSERVER__WORKERS=1
+      - AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT=240
+      - PYTHONPATH=/opt/airflow/src
+      - CASSANDRA_HOST=cassandra
+      - CASSANDRA_PORT=9042
+      - CASSANDRA_ALLOWED_HOSTS=cassandra,cassandra2,cassandra3
+      - CASSANDRA_WRITE_CONSISTENCY=LOCAL_ONE
+      - CASSANDRA_READ_CONSISTENCY=LOCAL_ONE
+      - MONGODB_URI=mongodb://mongodb:27017,mongodb2:27017,mongodb3:27017/code_metrics?replicaSet=rs0
+      - SPARK_DRIVER_MEMORY=1g
+      - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./storage:/opt/airflow/storage
+      - ./main.py:/opt/airflow/main.py
+      - ./pyproject.toml:/opt/airflow/pyproject.toml
+      - ./README.md:/opt/airflow/README.md
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    mem_limit: 1536m
+    command: >
+      bash -c "
+        rm -f /opt/airflow/airflow-webserver.pid /opt/airflow/airflow-scheduler.pid;
+        su -s /bin/bash airflow -c 'airflow db migrate' &&
+        su -s /bin/bash airflow -c 'airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true';
+        exec su -s /bin/bash airflow -c 'airflow webserver --workers 1'
+      "
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.1-python3.10
+    user: "0:0"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      cassandra:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      mongodb-rs-init:
+        condition: service_completed_successfully
+    environment:
+      - AIRFLOW_UID=50000
+      - AIRFLOW_GID=0
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - PYTHONPATH=/opt/airflow/src
+      - CASSANDRA_HOST=cassandra
+      - CASSANDRA_PORT=9042
+      - CASSANDRA_ALLOWED_HOSTS=cassandra,cassandra2,cassandra3
+      - CASSANDRA_WRITE_CONSISTENCY=LOCAL_ONE
+      - CASSANDRA_READ_CONSISTENCY=LOCAL_ONE
+      - MONGODB_URI=mongodb://mongodb:27017,mongodb2:27017,mongodb3:27017/code_metrics?replicaSet=rs0
+      - SPARK_DRIVER_MEMORY=1g
+      - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./storage:/opt/airflow/storage
+      - ./main.py:/opt/airflow/main.py
+      - ./pyproject.toml:/opt/airflow/pyproject.toml
+      - ./README.md:/opt/airflow/README.md
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    mem_limit: 2g
+    command: >
+      bash -c "
+        if ! command -v java >/dev/null 2>&1; then
+          apt-get update &&
+          apt-get install -y --no-install-recommends openjdk-17-jre-headless;
+        fi;
+        su -s /bin/bash airflow -c 'pip install --user --no-cache-dir pyspark==3.5.0 pymongo kafka-python cassandra-driver psycopg2-binary';
+        exec su -s /bin/bash airflow -c 'while true; do airflow scheduler; echo Scheduler crashed, restarting in 5s; sleep 5; done'
+      "
+
+volumes:
+  postgres_data:

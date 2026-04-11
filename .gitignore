@@ -15,3 +15,16 @@ wheels/
 # Database Volumes (DO NOT COMMIT)
 storage/cassandra_data/
 storage/mongo_data/
+storage/postgres_data/
+storage/checkpoints/
+
+airflow/logs/
+
+# Airflow runtime artifacts
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/simple_auth_manager_passwords.json.generated
+
+# Local environment files
+.env
+.env.*
