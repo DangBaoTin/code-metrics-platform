@@ -58,8 +58,6 @@ Detailed technical documentation is available in `docs/`:
 - `docs/09-operations-runbook.md`
 - `docs/10-troubleshooting-knowledge-base.md`
 - `docs/11-academic-report.md`
-- `docs/12-slide-ready-outline.md`
-- `docs/13-bao-cao-hoc-thuat-tieng-viet.md`
 - `docs/14-objective-mapping-matrix.md`
 - `docs/15-final-submission-checklist.md`
 
