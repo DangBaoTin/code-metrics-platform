@@ -26,7 +26,7 @@ podman compose up -d
 Validate health:
 
 ```bash
-bash scripts/verify_cluster.sh
+c
 ```
 
 Optional detailed view:

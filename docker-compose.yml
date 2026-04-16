@@ -16,7 +16,7 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    mem_limit: 320m
+    mem_limit: 384m
     cpus: 0.50
 
   zookeeper:
@@ -28,7 +28,7 @@ services:
     ports:
       - "2181:2181"
     mem_limit: 256m
-    cpus: 0.35
+    cpus: 0.40
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -44,9 +44,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m" # 7.5GB podman profile
-    mem_limit: 768m
-    cpus: 0.80
+      KAFKA_HEAP_OPTS: "-Xms768m -Xmx768m" # 12GB podman profile
+    mem_limit: 1280m
+    cpus: 1.00
 
   cassandra:
     image: cassandra:5.0.7
@@ -57,8 +57,8 @@ services:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
       - CASSANDRA_SEEDS=cassandra
       - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=128M
+      - MAX_HEAP_SIZE=768M
+      - HEAP_NEWSIZE=192M
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e \"SELECT now() FROM system.local;\" || exit 1"]
       interval: 20s
@@ -67,8 +67,8 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node1:/var/lib/cassandra
-    mem_limit: 896m
-    cpus: 0.70
+    mem_limit: 1408m
+    cpus: 0.90
 
   cassandra2:
     image: cassandra:5.0.7
@@ -80,8 +80,8 @@ services:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
       - CASSANDRA_SEEDS=cassandra
       - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=128M
+      - MAX_HEAP_SIZE=768M
+      - HEAP_NEWSIZE=192M
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e \"SELECT now() FROM system.local;\" || exit 1"]
       interval: 20s
@@ -90,8 +90,8 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node2:/var/lib/cassandra
-    mem_limit: 896m
-    cpus: 0.70
+    mem_limit: 1408m
+    cpus: 0.90
 
   cassandra3:
     image: cassandra:5.0.7
@@ -103,8 +103,8 @@ services:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
       - CASSANDRA_SEEDS=cassandra
       - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=128M
+      - MAX_HEAP_SIZE=768M
+      - HEAP_NEWSIZE=192M
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e \"SELECT now() FROM system.local;\" || exit 1"]
       interval: 20s
@@ -113,13 +113,13 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node3:/var/lib/cassandra
-    mem_limit: 896m
-    cpus: 0.70
+    mem_limit: 1408m
+    cpus: 0.90
 
   mongodb:
     image: mongo:7
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.25"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.5"]
     ports:
       - "27017:27017"
     healthcheck:
@@ -130,13 +130,13 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node1:/data/db
-    mem_limit: 576m
-    cpus: 0.40
+    mem_limit: 896m
+    cpus: 0.55
 
   mongodb2:
     image: mongo:7
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.25"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.5"]
     ports:
       - "27018:27017"
     healthcheck:
@@ -147,13 +147,13 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node2:/data/db
-    mem_limit: 576m
-    cpus: 0.40
+    mem_limit: 896m
+    cpus: 0.55
 
   mongodb3:
     image: mongo:7
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.25"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017", "--wiredTigerCacheSizeGB", "0.5"]
     ports:
       - "27019:27017"
     healthcheck:
@@ -164,8 +164,8 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node3:/data/db
-    mem_limit: 576m
-    cpus: 0.40
+    mem_limit: 896m
+    cpus: 0.55
 
   mongodb-rs-init:
     image: mongo:7
@@ -235,7 +235,7 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
     ports:
       - "8080:8080"
-    mem_limit: 512m
+    mem_limit: 768m
     cpus: 0.55
     command: >
       bash -c "
@@ -284,8 +284,8 @@ services:
       - ./README.md:/opt/airflow/README.md
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-    mem_limit: 768m
-    cpus: 0.70
+    mem_limit: 1024m
+    cpus: 0.80
     command: >
       bash -c "
         if ! command -v java >/dev/null 2>&1; then
