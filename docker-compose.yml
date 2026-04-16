@@ -223,7 +223,6 @@ services:
       - CASSANDRA_READ_CONSISTENCY=LOCAL_ONE
       - MONGODB_URI=mongodb://mongodb:27017,mongodb2:27017,mongodb3:27017/code_metrics?replicaSet=rs0
       - SPARK_DRIVER_MEMORY=1g
-      - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
@@ -239,10 +238,16 @@ services:
     cpus: 0.55
     command: >
       bash -c "
+        set -e;
+        if ! command -v java >/dev/null 2>&1; then
+          apt-get update &&
+          apt-get install -y --no-install-recommends openjdk-17-jre-headless;
+        fi;
         rm -f /opt/airflow/airflow-webserver.pid /opt/airflow/airflow-scheduler.pid;
+        su -s /bin/bash airflow -c 'pip install --user --no-cache-dir pyspark==3.5.0 pymongo kafka-python cassandra-driver psycopg2-binary';
         su -s /bin/bash airflow -c 'airflow db migrate' &&
         su -s /bin/bash airflow -c 'airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true';
-        exec su -s /bin/bash airflow -c 'airflow webserver --workers 1'
+        exec su -s /bin/bash airflow -c 'export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v java)))); export PATH=$JAVA_HOME/bin:$PATH; airflow webserver --workers 1'
       "
 
   airflow-scheduler:
@@ -274,7 +279,6 @@ services:
       - CASSANDRA_READ_CONSISTENCY=LOCAL_ONE
       - MONGODB_URI=mongodb://mongodb:27017,mongodb2:27017,mongodb3:27017/code_metrics?replicaSet=rs0
       - SPARK_DRIVER_MEMORY=1g
-      - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
@@ -288,12 +292,13 @@ services:
     cpus: 0.80
     command: >
       bash -c "
+        set -e;
         if ! command -v java >/dev/null 2>&1; then
           apt-get update &&
           apt-get install -y --no-install-recommends openjdk-17-jre-headless;
         fi;
         su -s /bin/bash airflow -c 'pip install --user --no-cache-dir pyspark==3.5.0 pymongo kafka-python cassandra-driver psycopg2-binary';
-        exec su -s /bin/bash airflow -c 'while true; do airflow scheduler; echo Scheduler crashed, restarting in 5s; sleep 5; done'
+        exec su -s /bin/bash airflow -c 'export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v java)))); export PATH=$JAVA_HOME/bin:$PATH; while true; do airflow scheduler; echo Scheduler crashed, restarting in 5s; sleep 5; done'
       "
 
 volumes:
