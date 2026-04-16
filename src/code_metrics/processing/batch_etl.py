@@ -41,6 +41,86 @@ def create_host_safe_cluster(cassandra_host: str, cassandra_port: int):
     return Cluster(contact_points, port=cassandra_port)
 
 
+def wait_for_cassandra_ready(cassandra_host: str, cassandra_port: int):
+    max_attempts = int(os.getenv("BATCH_CASSANDRA_READY_MAX_ATTEMPTS", "60"))
+    delay_seconds = float(os.getenv("BATCH_CASSANDRA_READY_DELAY_SEC", "3"))
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        cluster = None
+        try:
+            cluster = create_host_safe_cluster(cassandra_host, cassandra_port)
+            session = cluster.connect()
+            session.execute("SELECT release_version FROM system.local")
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                print(
+                    f"WARN Cassandra not ready for batch yet (attempt {attempt}/{max_attempts}): {exc}"
+                )
+                time.sleep(delay_seconds)
+        finally:
+            if cluster is not None:
+                cluster.shutdown()
+
+    raise RuntimeError(
+        f"Cassandra not ready for batch after {max_attempts} attempts: {last_error}"
+    )
+
+
+def cassandra_read_with_retry(spark: SparkSession, table: str, keyspace: str):
+    max_attempts = int(os.getenv("BATCH_CASSANDRA_READ_MAX_ATTEMPTS", "5"))
+    delay_seconds = float(os.getenv("BATCH_CASSANDRA_READ_RETRY_DELAY_SEC", "3"))
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return (
+                spark.read.format("org.apache.spark.sql.cassandra")
+                .options(table=table, keyspace=keyspace)
+                .load()
+            )
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                print(
+                    f"WARN Cassandra read {keyspace}.{table} attempt {attempt}/{max_attempts} failed: {exc}"
+                )
+                time.sleep(delay_seconds)
+
+    raise RuntimeError(
+        f"Failed reading Cassandra table {keyspace}.{table} after {max_attempts} attempts: {last_error}"
+    )
+
+
+def cassandra_write_with_retry(df, table: str, keyspace: str, mode: str = "append"):
+    max_attempts = int(os.getenv("BATCH_CASSANDRA_WRITE_MAX_ATTEMPTS", "5"))
+    delay_seconds = float(os.getenv("BATCH_CASSANDRA_WRITE_RETRY_DELAY_SEC", "3"))
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            (
+                df.write.format("org.apache.spark.sql.cassandra")
+                .options(table=table, keyspace=keyspace)
+                .mode(mode)
+                .save()
+            )
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                print(
+                    f"WARN Cassandra write {keyspace}.{table} attempt {attempt}/{max_attempts} failed: {exc}"
+                )
+                time.sleep(delay_seconds)
+
+    raise RuntimeError(
+        f"Failed writing Cassandra table {keyspace}.{table} after {max_attempts} attempts: {last_error}"
+    )
+
+
 def truncate_gold_tables_if_enabled():
     if not env_bool("BATCH_RESET_GOLD", True):
         return
@@ -214,13 +294,17 @@ def build_recommendations(df_silver):
 def run_batch_job():
     cass_read_consistency = os.getenv("CASSANDRA_READ_CONSISTENCY", "LOCAL_ONE")
     cass_write_consistency = os.getenv("CASSANDRA_WRITE_CONSISTENCY", "LOCAL_ONE")
+    cassandra_host = os.getenv("CASSANDRA_HOST", "localhost")
+    cassandra_port = int(os.getenv("CASSANDRA_PORT", "9042"))
+    cassandra_local_dc = os.getenv("CASSANDRA_LOCAL_DC", "dc1")
+
+    wait_for_cassandra_ready(cassandra_host, cassandra_port)
 
     spark = (
         SparkSession.builder.appName("CodeMetricsBatchETL")
-        .config(
-            "spark.cassandra.connection.host", os.getenv("CASSANDRA_HOST", "localhost")
-        )
-        .config("spark.cassandra.connection.port", os.getenv("CASSANDRA_PORT", "9042"))
+        .config("spark.cassandra.connection.host", cassandra_host)
+        .config("spark.cassandra.connection.port", str(cassandra_port))
+        .config("spark.cassandra.connection.localDC", cassandra_local_dc)
         .config("spark.cassandra.input.consistency.level", cass_read_consistency)
         .config("spark.cassandra.output.consistency.level", cass_write_consistency)
         .config(
@@ -238,11 +322,7 @@ def run_batch_job():
     truncate_gold_tables_if_enabled()
 
     # Bronze submissions extract
-    df_bronze_sub = (
-        spark.read.format("org.apache.spark.sql.cassandra")
-        .options(table="bronze_raw_submissions", keyspace="code_metrics")
-        .load()
-    )
+    df_bronze_sub = cassandra_read_with_retry(spark, "bronze_raw_submissions", "code_metrics")
 
     submission_schema = StructType(
         [
@@ -265,7 +345,7 @@ def run_batch_job():
     )
 
     # Silver persistence
-    (
+    cassandra_write_with_retry(
         df_silver.select(
             "problem_id",
             "user_id",
@@ -275,19 +355,14 @@ def run_batch_job():
             "status",
             "execution_time_ms",
             "memory_kb",
-        )
-        .write.format("org.apache.spark.sql.cassandra")
-        .options(table="silver_submissions", keyspace="code_metrics")
-        .mode("append")
-        .save()
+        ),
+        table="silver_submissions",
+        keyspace="code_metrics",
+        mode="append",
     )
 
     # Bronze system metrics for login-time proxy
-    df_bronze_metrics = (
-        spark.read.format("org.apache.spark.sql.cassandra")
-        .options(table="bronze_raw_system_metrics", keyspace="code_metrics")
-        .load()
-    )
+    df_bronze_metrics = cassandra_read_with_retry(spark, "bronze_raw_system_metrics", "code_metrics")
 
     metric_schema = StructType(
         [
@@ -347,11 +422,11 @@ def run_batch_job():
         .select("user_id", "engagement_score", "last_updated")
     )
 
-    (
-        df_engagement.write.format("org.apache.spark.sql.cassandra")
-        .options(table="gold_engagement_scores", keyspace="code_metrics")
-        .mode("append")
-        .save()
+    cassandra_write_with_retry(
+        df_engagement,
+        table="gold_engagement_scores",
+        keyspace="code_metrics",
+        mode="append",
     )
 
     # Gold B: Difficulty heatmap
@@ -399,11 +474,11 @@ def run_batch_job():
             )
         )
 
-        (
-            df_heatmap.write.format("org.apache.spark.sql.cassandra")
-            .options(table="gold_difficulty_heatmap", keyspace="code_metrics")
-            .mode("append")
-            .save()
+        cassandra_write_with_retry(
+            df_heatmap,
+            table="gold_difficulty_heatmap",
+            keyspace="code_metrics",
+            mode="append",
         )
 
     # Gold C: Subscription revenue from Mongo transactions
@@ -423,11 +498,11 @@ def run_batch_job():
             .withColumn("last_updated", F.current_timestamp())
         )
 
-        (
-            df_subscription.write.format("org.apache.spark.sql.cassandra")
-            .options(table="gold_subscription_revenue", keyspace="code_metrics")
-            .mode("append")
-            .save()
+        cassandra_write_with_retry(
+            df_subscription,
+            table="gold_subscription_revenue",
+            keyspace="code_metrics",
+            mode="append",
         )
 
     # Gold D: Instructor report card from ratings + problem metadata
@@ -453,11 +528,11 @@ def run_batch_job():
             .withColumn("last_updated", F.current_timestamp())
         )
 
-        (
-            df_instructor.write.format("org.apache.spark.sql.cassandra")
-            .options(table="gold_instructor_report_card", keyspace="code_metrics")
-            .mode("append")
-            .save()
+        cassandra_write_with_retry(
+            df_instructor,
+            table="gold_instructor_report_card",
+            keyspace="code_metrics",
+            mode="append",
         )
 
     # Gold E: Dropout prediction (Logistic Regression)
@@ -469,23 +544,22 @@ def run_batch_job():
     )
     df_dropout = df_dropout.withColumn("last_updated", F.current_timestamp())
 
-    (
-        df_dropout.select("user_id", "dropout_probability", "risk_label", "last_updated")
-        .write.format("org.apache.spark.sql.cassandra")
-        .options(table="gold_dropout_predictions", keyspace="code_metrics")
-        .mode("append")
-        .save()
+    cassandra_write_with_retry(
+        df_dropout.select("user_id", "dropout_probability", "risk_label", "last_updated"),
+        table="gold_dropout_predictions",
+        keyspace="code_metrics",
+        mode="append",
     )
 
     # Gold F: Next-problem recommender (Collaborative Filtering via ALS)
     df_recs = build_recommendations(df_silver)
     if df_recs is not None:
         df_recs = df_recs.withColumn("last_updated", F.current_timestamp())
-        (
-            df_recs.write.format("org.apache.spark.sql.cassandra")
-            .options(table="gold_next_problem_recommendations", keyspace="code_metrics")
-            .mode("append")
-            .save()
+        cassandra_write_with_retry(
+            df_recs,
+            table="gold_next_problem_recommendations",
+            keyspace="code_metrics",
+            mode="append",
         )
 
     # Gold G: Adaptive difficulty profiles
@@ -509,11 +583,11 @@ def run_batch_job():
         .select("user_id", "performance_tier", "recommended_difficulty", "last_updated")
     )
 
-    (
-        df_adaptive.write.format("org.apache.spark.sql.cassandra")
-        .options(table="gold_adaptive_difficulty_profiles", keyspace="code_metrics")
-        .mode("append")
-        .save()
+    cassandra_write_with_retry(
+        df_adaptive,
+        table="gold_adaptive_difficulty_profiles",
+        keyspace="code_metrics",
+        mode="append",
     )
 
     print("Batch ETL complete: Gold BI + AI tables updated.")
