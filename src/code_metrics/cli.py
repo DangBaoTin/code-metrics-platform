@@ -2,6 +2,9 @@
 
 import argparse
 import runpy
+import subprocess
+import sys
+from pathlib import Path
 
 
 def _run_seed_mongo() -> None:
@@ -28,7 +31,9 @@ def _run_stream() -> None:
 
 
 def _run_dashboard() -> None:
-    runpy.run_module("code_metrics.dashboard.app", run_name="__main__")
+    app_path = Path(__file__).resolve().parent / "dashboard" / "app.py"
+    # Launch through Streamlit runtime so ScriptRunContext is correctly initialized.
+    subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)], check=True)
 
 
 def main() -> None:

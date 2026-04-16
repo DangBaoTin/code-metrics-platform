@@ -53,6 +53,10 @@ def safe_send(topic, value):
     send_attempts = int(os.getenv("KAFKA_SEND_MAX_ATTEMPTS", "3"))
     send_delay = float(os.getenv("KAFKA_SEND_RETRY_DELAY_SEC", "0.5"))
 
+    # CLI entrypoints call generate_telemetry() directly, so initialize lazily.
+    if producer is None:
+        producer = create_kafka_producer_with_retry()
+
     for attempt in range(1, send_attempts + 1):
         try:
             producer.send(topic, value=value)

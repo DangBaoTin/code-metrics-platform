@@ -124,34 +124,54 @@ def reset_stream_state(cassandra_host: str, cassandra_port: str, checkpoint_base
 
     max_attempts = int(os.getenv("RESET_MAX_ATTEMPTS", "8"))
     delay_seconds = float(os.getenv("RESET_RETRY_DELAY_SEC", "2"))
+    strict_reset = env_bool("STREAM_RESET_STRICT", False)
+    skip_db_clear = env_bool("STREAM_RESET_SKIP_DB_CLEAR", False)
+    if skip_db_clear:
+        print("WARN STREAM_RESET_SKIP_DB_CLEAR=true; skipping Cassandra table clear during reset")
+        return
+
     last_error = None
+    tables = [
+        "code_metrics.gold_live_leaderboard",
+        "code_metrics.gold_system_alerts",
+    ]
 
-    for attempt in range(1, max_attempts + 1):
-        cluster = None
-        try:
-            cluster = create_host_safe_cluster(cassandra_host, cassandra_port)
-            session = cluster.connect()
-            session.execute("TRUNCATE code_metrics.gold_live_leaderboard")
-            session.execute("TRUNCATE code_metrics.gold_system_alerts")
-            return
-        except Exception as exc:
-            last_error = exc
-            print(f"WARN reset attempt {attempt}/{max_attempts} failed: {exc}")
-            if attempt < max_attempts:
-                time.sleep(delay_seconds)
-        finally:
-            if cluster is not None:
-                cluster.shutdown()
+    for table in tables:
+        table_cleared = False
+        for attempt in range(1, max_attempts + 1):
+            cluster = None
+            try:
+                cluster = create_host_safe_cluster(cassandra_host, cassandra_port)
+                session = cluster.connect()
+                session.execute(f"TRUNCATE {table}")
+                table_cleared = True
+                break
+            except Exception as exc:
+                last_error = exc
+                print(f"WARN reset {table} attempt {attempt}/{max_attempts} failed: {exc}")
+                if attempt < max_attempts:
+                    time.sleep(delay_seconds)
+            finally:
+                if cluster is not None:
+                    cluster.shutdown()
 
-    raise RuntimeError(
-        "Reset failed: Cassandra is not ready or keyspace is missing. "
-        "Run `podman exec -i code-metrics-platform-cassandra-1 cqlsh < storage/init_cassandra.cql` "
-        f"then retry. Last error: {last_error}"
-    )
+        if not table_cleared:
+            # TRUNCATE in Cassandra requires CL ALL; local clusters can be briefly degraded.
+            if strict_reset:
+                raise RuntimeError(
+                    f"Reset failed while truncating {table}. "
+                    "Cassandra ring is likely degraded or keyspace is missing. "
+                    "Run `podman exec -i code-metrics-platform-cassandra-1 cqlsh < storage/init_cassandra.cql` then retry. "
+                    f"Last error: {last_error}"
+                )
+            print(
+                f"WARN reset continuing without truncating {table} (strict mode disabled). "
+                "Pipeline will continue and overwrite new data as it arrives."
+            )
 
 
 def wait_for_cassandra_ready(cassandra_host: str, cassandra_port: str):
-    max_attempts = int(os.getenv("CASSANDRA_READY_MAX_ATTEMPTS", "20"))
+    max_attempts = int(os.getenv("CASSANDRA_READY_MAX_ATTEMPTS", "90"))
     delay_seconds = float(os.getenv("CASSANDRA_READY_DELAY_SEC", "2"))
     last_error = None
 
