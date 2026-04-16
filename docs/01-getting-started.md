@@ -26,6 +26,12 @@ podman compose up -d
 Validate health:
 
 ```bash
+bash scripts/verify_cluster.sh
+```
+
+Optional detailed view:
+
+```bash
 podman ps --format "table {{.Names}}\t{{.Status}}"
 podman exec -i code-metrics-platform-cassandra-1 nodetool status
 ```
@@ -38,6 +44,12 @@ PYTHONPATH=src uv run python -m code_metrics.cli seed-mongo
 ```
 
 ## Run the Platform (3 terminals)
+
+Before starting app jobs, run one preflight check:
+
+```bash
+bash scripts/verify_cluster.sh
+```
 
 Terminal A (Simulator):
 
@@ -56,6 +68,12 @@ Terminal C (Dashboard):
 ```bash
 PYTHONPATH=src uv run python -m code_metrics.cli dashboard
 ```
+
+Recommended startup order for best stability:
+
+1. Terminal B (Streaming)
+2. Terminal A (Simulator)
+3. Terminal C (Dashboard)
 
 ## Nightly Batch ETL
 

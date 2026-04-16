@@ -303,6 +303,22 @@ def status_tape(stats):
     )
 
 
+def safe_cassandra_query(query: str):
+    if not cass_session:
+        return []
+    max_attempts = int(os.getenv("DASHBOARD_CASSANDRA_QUERY_RETRIES", "3"))
+    delay_seconds = float(os.getenv("DASHBOARD_CASSANDRA_QUERY_RETRY_DELAY_SEC", "0.8"))
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return list(cass_session.execute(query))
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                time.sleep(delay_seconds)
+    raise RuntimeError(last_error)
+
+
 def get_quick_stats():
     baseline = {
         "system_status": "ONLINE",
@@ -316,19 +332,19 @@ def get_quick_stats():
         return baseline
 
     try:
-        lb_rows = cass_session.execute("SELECT user_id, total_solved FROM gold_live_leaderboard")
-        lb_df = pd.DataFrame(list(lb_rows))
+        lb_rows = safe_cassandra_query("SELECT user_id, total_solved FROM gold_live_leaderboard")
+        lb_df = pd.DataFrame(lb_rows)
         if not lb_df.empty:
             baseline["active_users"] = int(lb_df["user_id"].nunique())
             baseline["total_solved"] = int(lb_df["total_solved"].sum())
 
-        hm_rows = cass_session.execute("SELECT fail_rate_pct FROM gold_difficulty_heatmap")
-        hm_df = pd.DataFrame(list(hm_rows))
+        hm_rows = safe_cassandra_query("SELECT fail_rate_pct FROM gold_difficulty_heatmap")
+        hm_df = pd.DataFrame(hm_rows)
         if not hm_df.empty:
             baseline["avg_fail_rate"] = round(float(hm_df["fail_rate_pct"].mean()), 2)
 
-        risk_rows = cass_session.execute("SELECT engagement_score FROM gold_engagement_scores")
-        risk_df = pd.DataFrame(list(risk_rows))
+        risk_rows = safe_cassandra_query("SELECT engagement_score FROM gold_engagement_scores")
+        risk_df = pd.DataFrame(risk_rows)
         if not risk_df.empty:
             baseline["high_risk"] = int((risk_df["engagement_score"] < 100).sum())
     except Exception:
@@ -436,10 +452,10 @@ if not cass_session:
 
 
 def load_leaderboard():
-    cass_rows = cass_session.execute(
+    cass_rows = safe_cassandra_query(
         "SELECT user_id, total_solved, recent_status, last_updated FROM gold_live_leaderboard"
     )
-    df_leaderboard = pd.DataFrame(list(cass_rows))
+    df_leaderboard = pd.DataFrame(cass_rows)
     if df_leaderboard.empty:
         return df_leaderboard
 
@@ -450,10 +466,10 @@ def load_leaderboard():
 
 
 def load_heatmap():
-    rows = cass_session.execute(
+    rows = safe_cassandra_query(
         "SELECT problem_id, category, total_attempts, failed_attempts, fail_rate_pct FROM gold_difficulty_heatmap"
     )
-    df_heatmap = pd.DataFrame(list(rows))
+    df_heatmap = pd.DataFrame(rows)
     if df_heatmap.empty:
         return df_heatmap
 
@@ -464,17 +480,17 @@ def load_heatmap():
 
 
 def load_risk():
-    rows = cass_session.execute(
+    rows = safe_cassandra_query(
         "SELECT user_id, dropout_probability, risk_label, last_updated FROM gold_dropout_predictions"
     )
-    df_risk = pd.DataFrame(list(rows))
+    df_risk = pd.DataFrame(rows)
     if df_risk.empty:
         return df_risk
 
-    tiers = cass_session.execute(
+    tiers = safe_cassandra_query(
         "SELECT user_id, performance_tier, recommended_difficulty FROM gold_adaptive_difficulty_profiles"
     )
-    df_tiers = pd.DataFrame(list(tiers))
+    df_tiers = pd.DataFrame(tiers)
 
     users_meta = list(mongo_db["users"].find({}, {"_id": 1, "full_name": 1, "class_cohort": 1}))
     df_users = pd.DataFrame(users_meta).rename(columns={"_id": "user_id"})
@@ -491,10 +507,10 @@ def load_risk():
 
 
 def load_system_alerts():
-    rows = cass_session.execute(
+    rows = safe_cassandra_query(
         "SELECT alert_id, alert_type, user_id, description, triggered_at FROM gold_system_alerts"
     )
-    df_alerts = pd.DataFrame(list(rows))
+    df_alerts = pd.DataFrame(rows)
     if df_alerts.empty:
         return df_alerts
 
@@ -510,42 +526,42 @@ def load_system_alerts():
 
 
 def load_subscription_revenue():
-    rows = cass_session.execute(
+    rows = safe_cassandra_query(
         "SELECT plan_type, total_subscriptions, total_revenue_usd, last_updated FROM gold_subscription_revenue"
     )
-    df_sub = pd.DataFrame(list(rows))
+    df_sub = pd.DataFrame(rows)
     if df_sub.empty:
         return df_sub
     return df_sub.sort_values(by="total_revenue_usd", ascending=False).reset_index(drop=True)
 
 
 def load_instructor_report():
-    rows = cass_session.execute(
+    rows = safe_cassandra_query(
         "SELECT instructor_id, instructor_name, avg_rating, total_ratings, last_updated FROM gold_instructor_report_card"
     )
-    df_report = pd.DataFrame(list(rows))
+    df_report = pd.DataFrame(rows)
     if df_report.empty:
         return df_report
     return df_report.sort_values(by="avg_rating", ascending=False).reset_index(drop=True)
 
 
 def load_recommendations():
-    rec_rows = cass_session.execute(
+    rec_rows = safe_cassandra_query(
         "SELECT user_id, recommended_problem_id, recommendation_score, last_updated FROM gold_next_problem_recommendations"
     )
-    df_rec = pd.DataFrame(list(rec_rows))
+    df_rec = pd.DataFrame(rec_rows)
     if df_rec.empty:
         return df_rec
 
     users_meta = list(mongo_db["users"].find({}, {"_id": 1, "full_name": 1, "class_cohort": 1}))
     problems_meta = list(mongo_db["problems"].find({}, {"_id": 1, "title": 1, "difficulty": 1}))
-    tiers = cass_session.execute(
+    tiers = safe_cassandra_query(
         "SELECT user_id, performance_tier, recommended_difficulty FROM gold_adaptive_difficulty_profiles"
     )
 
     df_users = pd.DataFrame(users_meta).rename(columns={"_id": "user_id"})
     df_probs = pd.DataFrame(problems_meta).rename(columns={"_id": "recommended_problem_id"})
-    df_tiers = pd.DataFrame(list(tiers))
+    df_tiers = pd.DataFrame(tiers)
 
     df_rec = pd.merge(df_rec, df_users, on="user_id", how="left")
     df_rec = pd.merge(df_rec, df_probs, on="recommended_problem_id", how="left")

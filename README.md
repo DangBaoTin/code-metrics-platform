@@ -83,15 +83,20 @@ PYTHONPATH=src uv run python -m code_metrics.cli seed-mongo
 
 Run the platform (3 terminals):
 ```bash
+bash scripts/verify_cluster.sh
+PYTHONPATH=src STREAM_FAIL_ON_DATA_LOSS=false STREAM_STARTING_OFFSETS=latest STREAM_MAX_OFFSETS_PER_TRIGGER=300 CASSANDRA_HOST=127.0.0.1 CASSANDRA_CONTACT_POINTS=127.0.0.1 CASSANDRA_ALLOWED_HOSTS=127.0.0.1,localhost CASSANDRA_CONNECT_TIMEOUT_SEC=20 CASSANDRA_REQUEST_TIMEOUT_SEC=25 CASSANDRA_WRITE_CONSISTENCY=LOCAL_ONE CASSANDRA_READ_CONSISTENCY=LOCAL_ONE uv run spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0 src/code_metrics/processing/stream_leaderboard.py --reset-state
 PYTHONPATH=src uv run python -m code_metrics.cli simulate
-uv run spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0 src/code_metrics/processing/stream_leaderboard.py
 PYTHONPATH=src uv run python -m code_metrics.cli dashboard
 ```
+
+Recommended startup order: Streaming -> Simulator -> Dashboard.
 
 Verify cluster health:
 ```bash
 bash scripts/verify_cluster.sh
 ```
+
+The preflight script checks Kafka connectivity, Mongo replica-set quorum (PRIMARY + 2 SECONDARY), and Cassandra ring readiness (3 `UN` nodes).
 
 ## 🚀 Quick Start Guide
 
@@ -499,6 +504,16 @@ Recommended launch command:
 PYTHONPATH=src STREAM_STARTING_OFFSETS=latest STREAM_MAX_OFFSETS_PER_TRIGGER=600 CASSANDRA_BATCH_MAX_ATTEMPTS=8 CASSANDRA_BATCH_RETRY_DELAY_SEC=2 CASSANDRA_ROW_MAX_ATTEMPTS=4 CASSANDRA_WRITE_CONSISTENCY=LOCAL_ONE CASSANDRA_READ_CONSISTENCY=LOCAL_ONE uv run spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0 src/code_metrics/processing/stream_leaderboard.py --reset-state
 ```
 
+If reset still warns `Cannot achieve consistency level ALL` during TRUNCATE:
+- This is expected when some Cassandra replicas are still warming up.
+- Default behavior now continues startup (fail-open) after retries.
+- To force hard failure instead, set `STREAM_RESET_STRICT=true`.
+
+Optional safer reset command (skip DB clear, only reset checkpoints):
+```bash
+PYTHONPATH=src STREAM_RESET_SKIP_DB_CLEAR=true STREAM_STARTING_OFFSETS=latest STREAM_MAX_OFFSETS_PER_TRIGGER=600 CASSANDRA_WRITE_CONSISTENCY=LOCAL_ONE CASSANDRA_READ_CONSISTENCY=LOCAL_ONE uv run spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0 src/code_metrics/processing/stream_leaderboard.py --reset-state
+```
+
 If warnings persist for more than ~1 minute, verify ring health before restarting stream:
 ```bash
 podman exec -i code-metrics-platform-cassandra-1 nodetool status
@@ -517,4 +532,16 @@ Current behavior in this repo:
 Recommended recovery command:
 ```bash
 PYTHONPATH=src STREAM_FAIL_ON_DATA_LOSS=false STREAM_STARTING_OFFSETS=latest uv run spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0 src/code_metrics/processing/stream_leaderboard.py --reset-state
+```
+
+### 16. Dashboard intermittently fails with Cassandra `OperationTimedOut` / `received only 0 responses`
+Cause:
+- Cassandra read path is transiently degraded during ring warm-up or brief network churn.
+
+Current behavior in this repo:
+- Dashboard Cassandra reads now retry automatically before surfacing an error.
+
+Optional dashboard tuning:
+```bash
+DASHBOARD_CASSANDRA_QUERY_RETRIES=5 DASHBOARD_CASSANDRA_QUERY_RETRY_DELAY_SEC=1.2 PYTHONPATH=src uv run python -m code_metrics.cli dashboard
 ```

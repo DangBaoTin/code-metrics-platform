@@ -1,0 +1,129 @@
+DATA ENGINEERING
+Tourism Data Engineering with  
+Databricks and Spark
+G r o u p  3 :
+Võ Xuân H ạ  - 2210916
+Nguyễn Đình Quân - 2114547
+Lâm Nh ậ t Tân - 2010597 FACULTY OF COMPUTER SCIENCE AND ENGINEERING
+HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY01 I n t r o d u c t i o n
+02 Keytools
+0 3 D a t a  s o u r c e
+0 4 3  V ' s  o f  B i g  D a t a  i n  T o u r i s m
+0 5 M a i n  g o a l s
+0 6 A r c h i t e c t u r e
+0 7 D e m o
+O v e r v i e wT o u r i s m
+Tourism has evolved from simple travel to a complex industry
+shaping economies and cultures.B u s i n e s s  R e q u i r e m e n t s
+Sales DepartmentRequirements
+A c c e s s  t o  c u s t o m e r  p r o f i l e s ,  i . e .  b o o k i n g
+h i s t o r y ,  d e s t i n a t i o n  p r e f e r e n c e s ,  a n d  t r i p
+f e e d b a c k ,  t o  b e t t e r  u n d e r s t a n d  c u s t o m e r
+n e e d s .
+V i e w  i n s i g h t s  f r o m  h o t e l  r e v i e w s  a n d  c u s t o m e r
+s e n t i m e n t  a n a l y s i s  t o  e v a l u a t e  c u s t o m e r
+s a t i s f a c t i o n  a n d  i d e n t i f y  a r e a s  f o r  i m p r o v i n g
+s e r v i c e s  a n d  e n g a g e m e n t  s t r a t e g i e s .B u s i n e s s  R e q u i r e m e n t s
+Sales DepartmentS o l u t i o n s
+D e c i s i o n  S u p p o r t  S y s t e m  ( D S S ) :
+ D a s h b o a r d
+D i s p l a y s  c u s t o m e r  r e v i e w s  a n d
+s e n t i m e n t  a n a l y s i s  r e l a t e d  t o  h o t e l
+b o o k i n g s .
+P r o v i d e s  i n s i g h t s  i n t o  c u s t o m e r
+s a t i s f a c t i o n  a n d  a r e a s  f o r
+i m p r o v e m e n t .B u s i n e s s  R e q u i r e m e n t s
+Marketing DepartmentRequirements
+A c c e s s  t o  i n s i g h t s  f r o m  h o t e l  r e v i e w s  a n d
+c u s t o m e r  s e n t i m e n t  a n a l y s i s  t o  b e t t e r
+u n d e r s t a n d  c u s t o m e r  p r e f e r e n c e s  a n d
+d e s i g n  t a r g e t e d  c a m p a i g n s .B u s i n e s s  R e q u i r e m e n t s
+Marketing DepartmentS o l u t i o n s
+D e c i s i o n  S u p p o r t  S y s t e m  ( D S S ) :
+D a s h b o a r d
+A n a l y z e  c u s t o m e r  s e n t i m e n t s
+e x p r e s s e d  i n  h o t e l  r e v i e w s  t o  i d e n t i f y
+t r e n d s  a n d  p r e f e r e n c e s .
+M a c h i n e  L e a r n i n g  M o d e l :
+P r e d i c t  f u t u r e  c u s t o m e r  s e n t i m e n t
+t r e n d s  a n d  p r e f e r e n c e s  K e y  t o o l sDatabricks is a unified, open analytics platform for b u i l d i n g ,
+d e p l o y i n g ,  s h a r i n g ,  a n d  m a i n t a i n i n g enterprise-grade data,
+analytics, and AI solutions at scale. K e y  t o o l s
+Apache Spark is an open-source, distributed  computing system
+designed for fast processing of large data sets across clusters of
+computers.Databricks high-level architectureS p a r k  S Q L ,  D a t a s e t s ,  a n d  D a t a F r a m e s
+S p a r k  S t r e a m i n g
+P y S p a r kD a t a  S o u r c eD a t a  s o u r c e  -  B o o k i n g  A p pD a t a  s o u r c e  -  G o o g l e  r e v i e wC u s t o m e r  d a t a
+B o o k i n g  d a t a
+Profiles, locations, package
+types, amenities, reviews,
+ratings, satisfaction, ...
+Booking dates, booking
+seasons, channels, price, ...
+D a t a  s o u r c eF i e l d s  E x p l a i nD a t a  m o d e l3  V ' s  o f  B i g  D a t a  
+i n  T o u r i s mVolume
+Unprecedented
+Scale
+Wide variety
+Data from:
+searching, booking
+and leaving
+reviews,...
+Diverse types of data
+sources: text,
+multimedia, geospatial,
+transactional data, ..Velocity
+Data creation
+ Data ingestion
+ Data processing
+ Insight creation
+Actions: booking,
+searching,
+cancellations
+Ingest vast
+amounts of data
+from multiple
+channels
+Process large
+streams of
+incoming data and
+latest information
+Immediately
+analyze collected
+data to provide
+insightsVisualization 
+Challenge
+ Example
+R e a l - T i m e  B o o k i n g
+D a s h b o a r d s
+T o u r i s m  T r e n d
+C h a r t s
+S e n t i m e n t  A n a l y s i s
+D a s h b o a r d s
+Make data
+interpretable for
+decision-makingB u i l d  a  u n i f i e d  p l a t f o r m  f o r  c o l l e c t i n g ,  p r o c e s s i n g ,  a n d  a n a l y z i n g
+t o u r i s m  d a t a  f r o m  m u l t i p l e  s o u r c e s
+M a i n  g o a l s
+W h a t  a r e  y o u
+g o i n g  t o
+p r o v i d e ?M a i n  g o a l s
+B u i l d  a
+c e n t r a l i z e d  d a t a
+l a k e h o u s eM a i n  g o a l s
+R e a l - t i m e  S t r e a m i n gM a i n  g o a l s
+D a t a  a n a l y t i c s  d a s h b o a r d sM a i n  g o a l s
+M a c h i n e  L e a r n i n g  M o d e lA r c h i t e c t u r eDatabricks lakehouse architecture
+M e d a l l i o n  a r c h i t e c t u r e  ( m u l t i - l a y e r e d )
+B r o n z eS i l v e rG o l d
+I n g e s t  r a w  d a t aV a l i d a t e  a n d  d e d u p l i c a t e  d a t aP o w e r  a n a l y t i c sApplication architectureD e m oDashboards
+Hotel ScoresDashboards
+Customer SentimentsMachine learning ModelC o n c l u s i o n
+High cost of cloud storage and cloud compute (S3 and EC2 of AWS)
+Only 2 data sources
+End users need some foundation background knowledge
+F u t u r e  w o r kC h a l l e n g e s
+Try to combine with another tools or cloud storages to achieve high performance
+with low-cost pipeline
+Increase variety of data sources
+Increase value of data sourcesT h a n k  y o u  f o r  l i s t e n i n g
