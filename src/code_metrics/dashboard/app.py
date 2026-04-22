@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -141,7 +142,7 @@ def apply_styles(layout_mode="Demo"):
             padding: __CARD_PADDING__;
             min-height: 98px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
-            animation: riseIn 460ms ease-out both;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .metric-label {
             color: #9eb2d8;
@@ -206,7 +207,7 @@ def apply_styles(layout_mode="Demo"):
             border-radius: 14px;
             padding: 10px 12px;
             margin-bottom: 0.8rem;
-            animation: fadeIn 520ms ease-out both;
+            transition: opacity 0.3s ease;
         }
         .status-tape {
             margin-top: 0.8rem;
@@ -249,26 +250,12 @@ def apply_styles(layout_mode="Demo"):
             border-radius: 14px;
             padding: 6px;
             background: linear-gradient(165deg, rgba(13, 22, 38, 0.65), rgba(8, 14, 24, 0.85));
-            animation: riseIn 420ms ease-out both;
         }
         div[data-testid="stDataFrame"] {
             border: 1px solid rgba(86, 126, 187, 0.18);
             border-radius: 14px;
             overflow: hidden;
-            animation: fadeIn 460ms ease-out both;
             min-height: __DATAFRAME_MIN_H__;
-        }
-        .delay-1 { animation-delay: 60ms; }
-        .delay-2 { animation-delay: 120ms; }
-        .delay-3 { animation-delay: 180ms; }
-        .delay-4 { animation-delay: 240ms; }
-        @keyframes riseIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
         @keyframes tapeScroll {
             from { transform: translateX(0); }
@@ -402,17 +389,14 @@ with st.sidebar:
 
 apply_styles(layout_mode)
 
-
 st.markdown("<div class='section-title'>Code Metrics Platform</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtle'>Polyglot data platform with Kafka, Spark, Cassandra, MongoDB</div>", unsafe_allow_html=True)
-status_tape(get_quick_stats())
-
 
 k1, k2, k3, k4 = st.columns(4)
 with k1:
     st.markdown(
         """
-        <div class="metric-card delay-1">
+        <div class="metric-card">
             <div class="metric-label">Pipeline Status</div>
             <div class="metric-value">HEALTHY</div>
             <span class="metric-chip chip-green">Streaming active</span>
@@ -423,7 +407,7 @@ with k1:
 with k2:
     st.markdown(
         """
-        <div class="metric-card delay-2">
+        <div class="metric-card">
             <div class="metric-label">Ingestion Engine</div>
             <div class="metric-value">Kafka + Spark</div>
             <span class="metric-chip chip-red">&lt; 500ms latency</span>
@@ -434,7 +418,7 @@ with k2:
 with k3:
     st.markdown(
         """
-        <div class="metric-card delay-3">
+        <div class="metric-card">
             <div class="metric-label">Telemetry Storage</div>
             <div class="metric-value">Cassandra</div>
             <span class="metric-chip chip-green">Wide-column OLAP</span>
@@ -445,7 +429,7 @@ with k3:
 with k4:
     st.markdown(
         """
-        <div class="metric-card delay-4">
+        <div class="metric-card">
             <div class="metric-label">Metadata Storage</div>
             <div class="metric-value">MongoDB</div>
             <span class="metric-chip chip-green">Document OLTP</span>
@@ -585,337 +569,337 @@ def load_recommendations():
     return df_rec.sort_values(by="recommendation_score", ascending=False).reset_index(drop=True)
 
 
-if view in ["Overview", "Live Leaderboard"]:
-    section_header("STREAMING", "Live Leaderboard", "Real-time solved-volume ranking from telemetry stream")
-    try:
-        df_final = load_leaderboard()
-        if df_final.empty:
-            st.info("Waiting for telemetry data from Kafka.")
-        else:
-            kpi_a, kpi_b, kpi_c = st.columns(3)
-            with kpi_a:
-                st.markdown(
-                    f"<div class='glass-panel'><b>Top Student</b><br>{df_final.iloc[0]['full_name']}</div>",
-                    unsafe_allow_html=True,
-                )
-            with kpi_b:
-                st.markdown(
-                    f"<div class='glass-panel'><b>Total Active Users</b><br>{df_final['user_id'].nunique()}</div>",
-                    unsafe_allow_html=True,
-                )
-            with kpi_c:
-                st.markdown(
-                    f"<div class='glass-panel'><b>Total Solved</b><br>{int(df_final['total_solved'].sum())}</div>",
-                    unsafe_allow_html=True,
-                )
-
-            top10 = df_final.head(10)
-            fig_top = px.bar(
-                top10,
-                x="full_name",
-                y="total_solved",
-                color="total_solved",
-                color_continuous_scale=["#26b5d6", "#27e17f"],
-                template="plotly_dark",
-                labels={"full_name": "Student", "total_solved": "Solved"},
-                title="Top 10 Students by Solved Problems",
-            )
-            fig_top.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-                xaxis_title=None,
-                yaxis_title="Solved",
-            )
-            fig_top.update_traces(marker_line_width=0)
-            st.plotly_chart(fig_top, width="stretch")
-
-            df_display = df_final[
-                ["full_name", "class_cohort", "total_solved", "recent_status", "last_updated"]
-            ].copy()
-            df_display["last_updated"] = df_display["last_updated"].apply(humanize_time)
-            st.dataframe(df_display, width="stretch", height=360)
-    except Exception as e:
-        st.error(f"Error fetching leaderboard: {e}")
+auto_interval = timedelta(seconds=refresh_seconds) if refresh_enabled else None
 
 
-if view in ["Overview", "Difficulty Heatmap"]:
-    section_header("BATCH INSIGHT", "Difficulty Heatmap", "Problem and category-level failure concentration")
-    try:
-        df_heatmap = load_heatmap()
-        if df_heatmap.empty:
-            st.warning("No batch data found. Run the Airflow ETL job.")
-        else:
-            c1, c2 = st.columns([1.5, 1])
-            with c1:
-                tree = px.treemap(
-                    df_heatmap,
-                    path=["category", "title"],
-                    values="failed_attempts",
-                    color="fail_rate_pct",
-                    color_continuous_scale=["#25c787", "#f4c742", "#f87171"],
+@st.fragment(run_every=auto_interval)
+def _render_live_data():
+    """Fragment that refreshes data-driven sections without a full page reload."""
+    status_tape(get_quick_stats())
+
+    if view in ["Overview", "Live Leaderboard"]:
+        section_header("STREAMING", "Live Leaderboard", "Real-time solved-volume ranking from telemetry stream")
+        try:
+            df_final = load_leaderboard()
+            if df_final.empty:
+                st.info("Waiting for telemetry data from Kafka.")
+            else:
+                kpi_a, kpi_b, kpi_c = st.columns(3)
+                with kpi_a:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>Top Student</b><br>{df_final.iloc[0]['full_name']}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with kpi_b:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>Total Active Users</b><br>{df_final['user_id'].nunique()}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with kpi_c:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>Total Solved</b><br>{int(df_final['total_solved'].sum())}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                top10 = df_final.head(10)
+                fig_top = px.bar(
+                    top10,
+                    x="full_name",
+                    y="total_solved",
+                    color="total_solved",
+                    color_continuous_scale=["#26b5d6", "#27e17f"],
                     template="plotly_dark",
-                    title="Failure Volume by Category and Problem",
+                    labels={"full_name": "Student", "total_solved": "Solved"},
+                    title="Top 10 Students by Solved Problems",
                 )
-                tree.update_layout(
+                fig_top.update_layout(
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=10, r=10, t=45, b=10),
-                    coloraxis_colorbar=dict(title="Fail %"),
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    xaxis_title=None,
+                    yaxis_title="Solved",
                 )
-                st.plotly_chart(tree, width="stretch")
+                fig_top.update_traces(marker_line_width=0)
+                st.plotly_chart(fig_top, width="stretch")
 
-            with c2:
-                donut = px.pie(
-                    df_heatmap,
-                    values="failed_attempts",
-                    names="category",
-                    hole=0.55,
+                df_display = df_final[
+                    ["full_name", "class_cohort", "total_solved", "recent_status", "last_updated"]
+                ].copy()
+                df_display["last_updated"] = df_display["last_updated"].apply(humanize_time)
+                st.dataframe(df_display, width="stretch", height=360)
+        except Exception as e:
+            st.error(f"Error fetching leaderboard: {e}")
+
+    if view in ["Overview", "Difficulty Heatmap"]:
+        section_header("BATCH INSIGHT", "Difficulty Heatmap", "Problem and category-level failure concentration")
+        try:
+            df_heatmap = load_heatmap()
+            if df_heatmap.empty:
+                st.warning("No batch data found. Run the Airflow ETL job.")
+            else:
+                c1, c2 = st.columns([1.5, 1])
+                with c1:
+                    tree = px.treemap(
+                        df_heatmap,
+                        path=["category", "title"],
+                        values="failed_attempts",
+                        color="fail_rate_pct",
+                        color_continuous_scale=["#25c787", "#f4c742", "#f87171"],
+                        template="plotly_dark",
+                        title="Failure Volume by Category and Problem",
+                    )
+                    tree.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=10, r=10, t=45, b=10),
+                        coloraxis_colorbar=dict(title="Fail %"),
+                    )
+                    st.plotly_chart(tree, width="stretch")
+
+                with c2:
+                    donut = px.pie(
+                        df_heatmap,
+                        values="failed_attempts",
+                        names="category",
+                        hole=0.55,
+                        template="plotly_dark",
+                        color_discrete_sequence=px.colors.qualitative.Safe,
+                        title="Failure Share by Category",
+                    )
+                    donut.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=10, r=10, t=45, b=10),
+                    )
+                    st.plotly_chart(donut, width="stretch")
+
+                    st.dataframe(
+                        df_heatmap[["title", "category", "fail_rate_pct", "total_attempts"]].head(12),
+                        width="stretch",
+                        height=300,
+                        column_config={
+                            "fail_rate_pct": st.column_config.ProgressColumn(
+                                "Fail Rate",
+                                min_value=0,
+                                max_value=100,
+                                format="%.2f%%",
+                            )
+                        },
+                    )
+        except Exception as e:
+            st.error(f"Error fetching heatmap data: {e}")
+
+    if view in ["Overview", "Subscription Dashboard"]:
+        section_header(
+            "BUSINESS",
+            "Subscription Revenue",
+            "Plan-wise subscription counts and revenue aggregation",
+        )
+        try:
+            df_sub = load_subscription_revenue()
+            if df_sub.empty:
+                st.info("Run nightly batch ETL to generate subscription revenue aggregates.")
+            else:
+                total_revenue = float(df_sub["total_revenue_usd"].sum())
+                total_subs = int(df_sub["total_subscriptions"].sum())
+                k1, k2 = st.columns(2)
+                with k1:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>Total Revenue (USD)</b><br>${total_revenue:,.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with k2:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>Total Subscriptions</b><br>{total_subs}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                fig_sub = px.bar(
+                    df_sub,
+                    x="plan_type",
+                    y="total_revenue_usd",
+                    color="total_subscriptions",
                     template="plotly_dark",
-                    color_discrete_sequence=px.colors.qualitative.Safe,
-                    title="Failure Share by Category",
+                    title="Revenue by Plan",
                 )
-                donut.update_layout(
+                fig_sub.update_layout(
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=10, r=10, t=45, b=10),
+                    margin=dict(l=20, r=20, t=50, b=20),
                 )
-                st.plotly_chart(donut, width="stretch")
+                st.plotly_chart(fig_sub, width="stretch")
 
                 st.dataframe(
-                    df_heatmap[["title", "category", "fail_rate_pct", "total_attempts"]].head(12),
+                    df_sub[["plan_type", "total_subscriptions", "total_revenue_usd", "last_updated"]],
+                    width="stretch",
+                    height=260,
+                )
+        except Exception as e:
+            st.error(f"Error fetching subscription analytics: {e}")
+
+    if view in ["Overview", "Instructor Report Card"]:
+        section_header(
+            "ACADEMICS",
+            "Instructor Report Card",
+            "Spark-aggregated instructor quality scores from ratings",
+        )
+        try:
+            df_instructor = load_instructor_report()
+            if df_instructor.empty:
+                st.info("Run nightly batch ETL to generate instructor scorecards.")
+            else:
+                fig_inst = px.bar(
+                    df_instructor,
+                    x="instructor_name",
+                    y="avg_rating",
+                    color="total_ratings",
+                    template="plotly_dark",
+                    title="Instructor Average Ratings",
+                    labels={"avg_rating": "Average Rating"},
+                )
+                fig_inst.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    xaxis_title=None,
+                )
+                st.plotly_chart(fig_inst, width="stretch")
+
+                st.dataframe(
+                    df_instructor[
+                        ["instructor_name", "avg_rating", "total_ratings", "last_updated"]
+                    ],
+                    width="stretch",
+                    height=280,
+                )
+        except Exception as e:
+            st.error(f"Error fetching instructor report: {e}")
+
+    if view in ["Overview", "Dropout Risk"]:
+        section_header("RISK", "Dropout Risk Monitor", "Logistic Regression dropout probability by student")
+        try:
+            df_risk = load_risk()
+            if df_risk.empty:
+                st.info("Run the nightly batch job to generate model predictions.")
+            else:
+                risk_colors = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#22c55e"}
+                fig_risk = px.scatter(
+                    df_risk,
+                    x="full_name",
+                    y="dropout_probability",
+                    color="risk_label",
+                    color_discrete_map=risk_colors,
+                    size="dropout_probability",
+                    size_max=20,
+                    template="plotly_dark",
+                    title="Student Dropout Probability Distribution",
+                    labels={"full_name": "Student", "dropout_probability": "Dropout Probability (%)"},
+                )
+                fig_risk.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    xaxis_title=None,
+                )
+                st.plotly_chart(fig_risk, width="stretch")
+
+                st.dataframe(
+                    df_risk[
+                        [
+                            "full_name",
+                            "class_cohort",
+                            "dropout_probability",
+                            "risk_label",
+                            "performance_tier",
+                            "recommended_difficulty",
+                        ]
+                    ],
                     width="stretch",
                     height=300,
                     column_config={
-                        "fail_rate_pct": st.column_config.ProgressColumn(
-                            "Fail Rate",
-                            min_value=0,
-                            max_value=100,
-                            format="%.2f%%",
-                        )
+                        "risk_label": st.column_config.TextColumn("Risk", help="Derived from model output")
                     },
                 )
-    except Exception as e:
-        st.error(f"Error fetching heatmap data: {e}")
+        except Exception as e:
+            st.error(f"Error fetching risk data: {e}")
 
-
-if view in ["Overview", "Subscription Dashboard"]:
-    section_header(
-        "BUSINESS",
-        "Subscription Revenue",
-        "Plan-wise subscription counts and revenue aggregation",
-    )
-    try:
-        df_sub = load_subscription_revenue()
-        if df_sub.empty:
-            st.info("Run nightly batch ETL to generate subscription revenue aggregates.")
-        else:
-            total_revenue = float(df_sub["total_revenue_usd"].sum())
-            total_subs = int(df_sub["total_subscriptions"].sum())
-            k1, k2 = st.columns(2)
-            with k1:
-                st.markdown(
-                    f"<div class='glass-panel'><b>Total Revenue (USD)</b><br>${total_revenue:,.2f}</div>",
-                    unsafe_allow_html=True,
+    if view in ["Overview", "AI Recommender"]:
+        section_header(
+            "AI",
+            "Next-Problem Recommender",
+            "Collaborative filtering recommendations and adaptive difficulty guidance",
+        )
+        try:
+            df_rec = load_recommendations()
+            if df_rec.empty:
+                st.info("Run nightly batch ETL to generate recommendation outputs.")
+            else:
+                tier_dist = (
+                    df_rec["performance_tier"].value_counts().rename_axis("tier").reset_index(name="count")
+                    if "performance_tier" in df_rec
+                    else pd.DataFrame()
                 )
-            with k2:
-                st.markdown(
-                    f"<div class='glass-panel'><b>Total Subscriptions</b><br>{total_subs}</div>",
-                    unsafe_allow_html=True,
+                if not tier_dist.empty:
+                    fig_tier = px.pie(
+                        tier_dist,
+                        names="tier",
+                        values="count",
+                        hole=0.45,
+                        template="plotly_dark",
+                        title="Adaptive Tier Distribution",
+                    )
+                    fig_tier.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=10, r=10, t=45, b=10),
+                    )
+                    st.plotly_chart(fig_tier, width="stretch")
+
+                st.dataframe(
+                    df_rec[
+                        [
+                            "full_name",
+                            "class_cohort",
+                            "title",
+                            "difficulty",
+                            "recommendation_score",
+                            "performance_tier",
+                            "recommended_difficulty",
+                        ]
+                    ].head(100),
+                    width="stretch",
+                    height=320,
                 )
+        except Exception as e:
+            st.error(f"Error fetching recommendation output: {e}")
 
-            fig_sub = px.bar(
-                df_sub,
-                x="plan_type",
-                y="total_revenue_usd",
-                color="total_subscriptions",
-                template="plotly_dark",
-                title="Revenue by Plan",
-            )
-            fig_sub.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-            )
-            st.plotly_chart(fig_sub, width="stretch")
+    if view in ["Overview", "System Alerts"]:
+        section_header("OPERATIONS", "System Alerts", "Latency and suspicious-activity alerts from system_metrics stream")
+        try:
+            df_alerts = load_system_alerts()
+            if df_alerts.empty:
+                st.info("No alerts yet. Start simulator + streaming job to populate system alerts.")
+            else:
+                alert_counts = df_alerts["alert_type"].value_counts().to_dict()
+                a1, a2 = st.columns(2)
+                with a1:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>HIGH_LATENCY</b><br>{alert_counts.get('HIGH_LATENCY', 0)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with a2:
+                    st.markdown(
+                        f"<div class='glass-panel'><b>CHEAT_DETECTED</b><br>{alert_counts.get('CHEAT_DETECTED', 0)}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-            st.dataframe(
-                df_sub[["plan_type", "total_subscriptions", "total_revenue_usd", "last_updated"]],
-                width="stretch",
-                height=260,
-            )
-    except Exception as e:
-        st.error(f"Error fetching subscription analytics: {e}")
-
-
-if view in ["Overview", "Instructor Report Card"]:
-    section_header(
-        "ACADEMICS",
-        "Instructor Report Card",
-        "Spark-aggregated instructor quality scores from ratings",
-    )
-    try:
-        df_instructor = load_instructor_report()
-        if df_instructor.empty:
-            st.info("Run nightly batch ETL to generate instructor scorecards.")
-        else:
-            fig_inst = px.bar(
-                df_instructor,
-                x="instructor_name",
-                y="avg_rating",
-                color="total_ratings",
-                template="plotly_dark",
-                title="Instructor Average Ratings",
-                labels={"avg_rating": "Average Rating"},
-            )
-            fig_inst.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-                xaxis_title=None,
-            )
-            st.plotly_chart(fig_inst, width="stretch")
-
-            st.dataframe(
-                df_instructor[
-                    ["instructor_name", "avg_rating", "total_ratings", "last_updated"]
-                ],
-                width="stretch",
-                height=280,
-            )
-    except Exception as e:
-        st.error(f"Error fetching instructor report: {e}")
-
-
-if view in ["Overview", "Dropout Risk"]:
-    section_header("RISK", "Dropout Risk Monitor", "Logistic Regression dropout probability by student")
-    try:
-        df_risk = load_risk()
-        if df_risk.empty:
-            st.info("Run the nightly batch job to generate model predictions.")
-        else:
-            risk_colors = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#22c55e"}
-            fig_risk = px.scatter(
-                df_risk,
-                x="full_name",
-                y="dropout_probability",
-                color="risk_label",
-                color_discrete_map=risk_colors,
-                size="dropout_probability",
-                size_max=20,
-                template="plotly_dark",
-                title="Student Dropout Probability Distribution",
-                labels={"full_name": "Student", "dropout_probability": "Dropout Probability (%)"},
-            )
-            fig_risk.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=20, r=20, t=50, b=20),
-                xaxis_title=None,
-            )
-            st.plotly_chart(fig_risk, width="stretch")
-
-            st.dataframe(
-                df_risk[
-                    [
-                        "full_name",
-                        "class_cohort",
-                        "dropout_probability",
-                        "risk_label",
-                        "performance_tier",
-                        "recommended_difficulty",
-                    ]
-                ],
-                width="stretch",
-                height=300,
-                column_config={
-                    "risk_label": st.column_config.TextColumn("Risk", help="Derived from model output")
-                },
-            )
-    except Exception as e:
-        st.error(f"Error fetching risk data: {e}")
-
-
-if view in ["Overview", "AI Recommender"]:
-    section_header(
-        "AI",
-        "Next-Problem Recommender",
-        "Collaborative filtering recommendations and adaptive difficulty guidance",
-    )
-    try:
-        df_rec = load_recommendations()
-        if df_rec.empty:
-            st.info("Run nightly batch ETL to generate recommendation outputs.")
-        else:
-            tier_dist = (
-                df_rec["performance_tier"].value_counts().rename_axis("tier").reset_index(name="count")
-                if "performance_tier" in df_rec
-                else pd.DataFrame()
-            )
-            if not tier_dist.empty:
-                fig_tier = px.pie(
-                    tier_dist,
-                    names="tier",
-                    values="count",
-                    hole=0.45,
-                    template="plotly_dark",
-                    title="Adaptive Tier Distribution",
+                st.dataframe(
+                    df_alerts[["triggered_at", "alert_type", "full_name", "class_cohort", "description"]].head(50),
+                    width="stretch",
+                    height=320,
                 )
-                fig_tier.update_layout(
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=10, r=10, t=45, b=10),
-                )
-                st.plotly_chart(fig_tier, width="stretch")
-
-            st.dataframe(
-                df_rec[
-                    [
-                        "full_name",
-                        "class_cohort",
-                        "title",
-                        "difficulty",
-                        "recommendation_score",
-                        "performance_tier",
-                        "recommended_difficulty",
-                    ]
-                ].head(100),
-                width="stretch",
-                height=320,
-            )
-    except Exception as e:
-        st.error(f"Error fetching recommendation output: {e}")
+        except Exception as e:
+            st.error(f"Error fetching system alerts: {e}")
 
 
-if view in ["Overview", "System Alerts"]:
-    section_header("OPERATIONS", "System Alerts", "Latency and suspicious-activity alerts from system_metrics stream")
-    try:
-        df_alerts = load_system_alerts()
-        if df_alerts.empty:
-            st.info("No alerts yet. Start simulator + streaming job to populate system alerts.")
-        else:
-            alert_counts = df_alerts["alert_type"].value_counts().to_dict()
-            a1, a2 = st.columns(2)
-            with a1:
-                st.markdown(
-                    f"<div class='glass-panel'><b>HIGH_LATENCY</b><br>{alert_counts.get('HIGH_LATENCY', 0)}</div>",
-                    unsafe_allow_html=True,
-                )
-            with a2:
-                st.markdown(
-                    f"<div class='glass-panel'><b>CHEAT_DETECTED</b><br>{alert_counts.get('CHEAT_DETECTED', 0)}</div>",
-                    unsafe_allow_html=True,
-                )
-
-            st.dataframe(
-                df_alerts[["triggered_at", "alert_type", "full_name", "class_cohort", "description"]].head(50),
-                width="stretch",
-                height=320,
-            )
-    except Exception as e:
-        st.error(f"Error fetching system alerts: {e}")
-
-
-if refresh_enabled:
-    time.sleep(refresh_seconds)
-    st.rerun()
+_render_live_data()

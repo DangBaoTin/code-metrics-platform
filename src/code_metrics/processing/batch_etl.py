@@ -307,6 +307,10 @@ def run_batch_job():
         .config("spark.cassandra.connection.localDC", cassandra_local_dc)
         .config("spark.cassandra.input.consistency.level", cass_read_consistency)
         .config("spark.cassandra.output.consistency.level", cass_write_consistency)
+        .config("spark.cassandra.output.concurrent.writes", "2")
+        .config("spark.cassandra.output.batch.size.rows", "100")
+        .config("spark.cassandra.connection.timeoutMS", "60000")
+        .config("spark.cassandra.read.timeoutMS", "120000")
         .config(
             "spark.jars.packages",
             "com.datastax.spark:spark-cassandra-connector_2.12:3.5.0,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1",
