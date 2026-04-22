@@ -14,28 +14,12 @@ def _run_seed_mongo() -> None:
 
 
 def _run_batch() -> None:
-    from code_metrics.processing.batch_etl import run_batch_job, run_batch_job_no_spark
+    from code_metrics.processing.batch_etl import run_batch_job
 
-    try:
-        run_batch_job()
-    except Exception as exc:
-        allow_fallback = str(__import__("os").getenv("BATCH_ALLOW_NO_SPARK_FALLBACK", "true")).lower() in {
-            "1",
-            "true",
-            "yes",
-            "y",
-            "on",
-        }
-        if not allow_fallback:
-            raise
-        print(f"WARN Spark batch failed ({exc}); falling back to no-spark batch mode...")
-        run_batch_job_no_spark()
+    run_batch_job()
 
 
-def _run_batch_no_spark() -> None:
-    from code_metrics.processing.batch_etl import run_batch_job_no_spark
 
-    run_batch_job_no_spark()
 
 
 def _run_simulator() -> None:
@@ -61,7 +45,7 @@ def main() -> None:
 
     sub.add_parser("seed-mongo", help="Seed MongoDB collections")
     sub.add_parser("batch", help="Run batch ETL job")
-    sub.add_parser("batch-no-spark", help="Run batch ETL without Spark (Python fallback)")
+
     sub.add_parser("simulate", help="Run telemetry simulator")
     sub.add_parser("stream", help="Run streaming leaderboard pipeline")
     sub.add_parser("dashboard", help="Run Streamlit dashboard module")
@@ -74,9 +58,7 @@ def main() -> None:
     if args.command == "batch":
         _run_batch()
         return
-    if args.command == "batch-no-spark":
-        _run_batch_no_spark()
-        return
+
     if args.command == "simulate":
         _run_simulator()
         return
