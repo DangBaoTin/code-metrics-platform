@@ -121,8 +121,18 @@ def apply_styles(layout_mode="Demo"):
             background: linear-gradient(180deg, #0b1220 0%, #070d18 100%);
             border-right: 1px solid rgba(105, 138, 194, 0.2);
         }
-        section[data-testid="stSidebar"] * {
+        section[data-testid="stSidebar"] .stMarkdown,
+        section[data-testid="stSidebar"] .stCaption,
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] span,
+        section[data-testid="stSidebar"] div {
             font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+        }
+        /* Keep Material Symbols glyph rendering intact for native Streamlit icons. */
+        section[data-testid="stSidebar"] [class*="material-symbols"],
+        section[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
+            font-family: 'Material Symbols Rounded', 'Material Symbols Outlined', sans-serif !important;
         }
         .metric-card {
             border: 1px solid rgba(76, 112, 169, 0.35);

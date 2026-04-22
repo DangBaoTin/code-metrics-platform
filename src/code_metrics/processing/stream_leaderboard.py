@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from cassandra.cluster import Cluster, EXEC_PROFILE_DEFAULT, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
@@ -263,11 +263,11 @@ def write_system_alerts(batch_df, batch_id, cassandra_host: str, cassandra_port:
         def _params(row):
             raw_ts = row.timestamp
             if raw_ts is None:
-                ts = datetime.utcnow()
+                ts = datetime.now(timezone.utc)
             elif isinstance(raw_ts, datetime):
-                ts = raw_ts
+                ts = raw_ts if raw_ts.tzinfo else raw_ts.replace(tzinfo=timezone.utc)
             else:
-                ts = datetime.utcfromtimestamp(float(raw_ts))
+                ts = datetime.fromtimestamp(float(raw_ts), timezone.utc)
             return (
                 uuid.uuid4(),
                 row.alert_type,
@@ -351,6 +351,24 @@ def write_bronze_metrics(batch_df, batch_id, cassandra_host: str, cassandra_port
         print(f"WARN bronze metrics batch failed (batch_id={batch_id}): {exc}")
 
 
+def configure_noisy_stream_loggers(spark: SparkSession):
+    """Lower verbosity for known benign Spark/Kafka streaming warnings."""
+    try:
+        jvm = spark._jvm
+        configurator = jvm.org.apache.logging.log4j.core.config.Configurator
+        level = jvm.org.apache.logging.log4j.Level.ERROR
+        noisy_loggers = [
+            "org.apache.spark.sql.execution.streaming.ResolveWriteToStream",
+            "org.apache.kafka.clients.admin.AdminClientConfig",
+            "org.apache.spark.sql.catalyst.util.SparkStringUtils",
+        ]
+        for logger_name in noisy_loggers:
+            configurator.setLevel(logger_name, level)
+    except Exception:
+        # Keep startup resilient when Log4j classes vary across Spark distributions.
+        pass
+
+
 def main():
     args = parse_args()
 
@@ -377,12 +395,16 @@ def main():
         .config("spark.cassandra.connection.port", cassandra_port)
         .config("spark.cassandra.input.consistency.level", cass_read_consistency)
         .config("spark.cassandra.output.consistency.level", cass_write_consistency)
+        .config("spark.sql.adaptive.enabled", "false")
+        .config("spark.sql.shuffle.partitions", os.getenv("STREAM_SHUFFLE_PARTITIONS", "32"))
+        .config("spark.sql.debug.maxToStringFields", "200")
         .config("spark.driver.bindAddress", "127.0.0.1")
         .config("spark.driver.host", "127.0.0.1")
         .getOrCreate()
     )
 
     spark.sparkContext.setLogLevel("WARN")
+    configure_noisy_stream_loggers(spark)
 
     submission_schema = StructType(
         [

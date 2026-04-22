@@ -28,3 +28,6 @@ airflow/simple_auth_manager_passwords.json.generated
 # Local environment files
 .env
 .env.*
+
+# Local document files
+docs/agent-instruction/
