@@ -16,8 +16,8 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    mem_limit: 320m
-    cpus: 0.20
+    mem_limit: 384m
+    cpus: 0.25
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -27,8 +27,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    mem_limit: 224m
-    cpus: 0.10
+    mem_limit: 256m
+    cpus: 0.15
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -45,8 +45,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_HEAP_OPTS: "-Xms640m -Xmx640m" # 9GB podman profile
-    mem_limit: 1024m
-    cpus: 0.35
+    mem_limit: 1280m
+    cpus: 0.50
 
   cassandra:
     image: cassandra:5.0.7
@@ -67,15 +67,15 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node1:/var/lib/cassandra
-    mem_limit: 1024m
-    cpus: 0.30
+    mem_limit: 1280m
+    cpus: 0.50
 
   cassandra2:
     image: cassandra:5.0.7
     restart: unless-stopped
     depends_on:
       cassandra:
-        condition: service_started
+        condition: service_healthy
     environment:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
       - CASSANDRA_SEEDS=cassandra
@@ -90,15 +90,15 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node2:/var/lib/cassandra
-    mem_limit: 1024m
-    cpus: 0.30
+    mem_limit: 1280m
+    cpus: 0.50
 
   cassandra3:
     image: cassandra:5.0.7
     restart: unless-stopped
     depends_on:
       cassandra:
-        condition: service_started
+        condition: service_healthy
     environment:
       - CASSANDRA_CLUSTER_NAME=CodeMetricsCluster
       - CASSANDRA_SEEDS=cassandra
@@ -113,8 +113,8 @@ services:
       start_period: 90s
     volumes:
       - ./storage/cassandra_data/node3:/var/lib/cassandra
-    mem_limit: 1024m
-    cpus: 0.30
+    mem_limit: 1280m
+    cpus: 0.50
 
   mongodb:
     image: mongo:7
@@ -130,8 +130,8 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node1:/data/db
-    mem_limit: 640m
-    cpus: 0.20
+    mem_limit: 768m
+    cpus: 0.35
 
   mongodb2:
     image: mongo:7
@@ -147,8 +147,8 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node2:/data/db
-    mem_limit: 640m
-    cpus: 0.20
+    mem_limit: 768m
+    cpus: 0.35
 
   mongodb3:
     image: mongo:7
@@ -164,8 +164,8 @@ services:
       start_period: 40s
     volumes:
       - ./storage/mongo_data/node3:/data/db
-    mem_limit: 640m
-    cpus: 0.20
+    mem_limit: 768m
+    cpus: 0.35
 
   mongodb-rs-init:
     image: mongo:7
@@ -234,8 +234,8 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
     ports:
       - "8080:8080"
-    mem_limit: 576m
-    cpus: 0.20
+    mem_limit: 640m
+    cpus: 0.30
     command: >
       bash -c "
         set -e;
@@ -288,8 +288,8 @@ services:
       - ./README.md:/opt/airflow/README.md
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-    mem_limit: 768m
-    cpus: 0.35
+    mem_limit: 1024m
+    cpus: 0.50
     command: >
       bash -c "
         set -e;

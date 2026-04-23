@@ -31,3 +31,4 @@ airflow/simple_auth_manager_passwords.json.generated
 
 # Local document files
 docs/agent-instruction/
+docs/copilot-prompt/
