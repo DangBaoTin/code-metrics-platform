@@ -21,9 +21,11 @@ def humanize_time(dt):
     """Convert timestamps to relative text."""
     if pd.isna(dt):
         return "Unknown"
-    now = pd.Timestamp.utcnow().replace(tzinfo=None)
-    dt_naive = pd.to_datetime(dt).replace(tzinfo=None)
-    diff = now - dt_naive
+
+    # Use timezone-aware UTC timestamps to avoid deprecated naive UTC paths.
+    now = pd.Timestamp.now(tz="UTC")
+    dt_utc = pd.to_datetime(dt, utc=True)
+    diff = now - dt_utc
     seconds = diff.total_seconds()
 
     if seconds < 60:
